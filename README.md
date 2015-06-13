@@ -42,3 +42,6 @@ var shifterbeltClient = new ShifterbeltClient({
 http://socket.shifterbelt.com/ns APPLICATION_ID APPLICATION_MASTER_KEY APPLICATION_MASTER_PASSWORD
     ```
 
+3. Test
+
+    open the url [http://localhost:3001](http://localhost:3001)
