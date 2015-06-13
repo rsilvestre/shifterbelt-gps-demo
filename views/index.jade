@@ -1,0 +1,22 @@
+extends layout
+
+block content
+    h1= title
+    p Welcome to #{title}
+    button(name="yes") yes
+    button(name="no") no
+    div#result
+
+    script.
+        var socket = io('http://localhost:3001');
+        var $result = $('#result');
+        socket.on('gps_data', function (data) {
+            $result.text('sender: ' + data.sender + ', send: ' + JSON.stringify(data.message) + '');
+        });
+        $('[name="yes"]').on('click', function() {
+            socket.emit('command', 'yes');
+        });
+        $('[name="no"]').on('click', function() {
+            socket.emit('command', 'no');
+            $result.text('');
+        });
