@@ -10,10 +10,10 @@ var http = require('http');
 
 var ShifterbeltClient = require('shifterbelt-talker');
 var shifterbeltClient = new ShifterbeltClient({
-  url: String(process.argv.slice(2, 3)[0]), // Default : http://socket.shifterbelt.com/ns
-  applicationId: Number(process.argv.slice(3, 4)[0]),
-  key: process.argv.slice(4, 5)[0],
-  password: process.argv.slice(5, 6)[0]
+  url: process.env.DEMO_URL || String(process.argv.slice(2, 3)[0]), // Default : http://socket.shifterbelt.com/ns
+  applicationId: process.env.DEMO_APP_ID || Number(process.argv.slice(3, 4)[0]),
+  key: process.env.DEMO_KEY || process.argv.slice(4, 5)[0],
+  password: process.env.DEMO_PASSWORD || process.argv.slice(5, 6)[0]
 });
 
 /**
