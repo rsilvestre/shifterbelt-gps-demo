@@ -10,7 +10,7 @@ var http = require('http');
 
 var ShifterbeltClient = require('shifterbelt-talker');
 var shifterbeltClient = new ShifterbeltClient({
-  url: String(process.argv.slice(2,3)[0]),
+  url: String(process.argv.slice(2, 3)[0]),
   applicationId: Number(process.argv.slice(3, 4)[0]),
   key: process.argv.slice(4, 5)[0],
   password: process.argv.slice(5, 6)[0]
@@ -33,16 +33,21 @@ var io = require('socket.io')(server);
 
 shifterbeltClient.on('connect', function(sbSoc) {
   //console.log("sb connected");
-  io.on('connection', function(ioSoc) {
-    //console.log("io connected");
-    sbSoc.on('gps_data', function(sender, message) {
-      //console.log('sender: ' + sender + ' message: ' + message);
-      ioSoc.emit('gps_data', {sender: sender, message: message});
+  sbSoc.on('connect', function(service) {
+    io.on('connection', function(ioSoc) {
+      //console.log("io connected");
+      service.on('gps_data', function(message) {
+        //console.log('sender: ' + sender + ' message: ' + message);
+        ioSoc.emit('gps_data', { sender: service.deviceId, message: message });
+      });
+      service.on('status', function(message) {
+        ioSoc.emit('status', { sender: service.deviceId, message: message });
+      });
+      ioSoc.on('command', function(command) {
+        //console.log(command);
+        service.emit('command', command);
+      });
     });
-    ioSoc.on('command', function(command) {
-      //console.log(command);
-      sbSoc.emit('command', 'd039721b5c78', command);
-    })
   });
 });
 

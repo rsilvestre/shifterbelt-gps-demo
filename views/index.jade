@@ -6,12 +6,15 @@ block content
     button(name="yes") yes
     button(name="no") no
     div#result
+    div#map-canvas
 
     script.
-        var socket = io('http://localhost:3001');
+        var socket = io('http://'+location.host);
         var $result = $('#result');
         socket.on('gps_data', function (data) {
             $result.text('sender: ' + data.sender + ', send: ' + JSON.stringify(data.message) + '');
+            var msgObj = data.message;
+            autoUpdate(new google.maps.LatLng(msgObj.latitude,msgObj.longitude));
         });
         $('[name="yes"]').on('click', function() {
             socket.emit('command', 'yes');
@@ -20,3 +23,40 @@ block content
             socket.emit('command', 'no');
             $result.text('');
         });
+        socket.on('status', function(data){
+            if (data.message === 'off') {
+                $result.text('');
+            }
+        });
+        //function initialize() {
+        //    var mapOptions = {
+        //        center: { lat: -34.397, lng: 150.644},
+        //        zoom: 8
+        //    };
+        //    var map = new google.maps.Map(document.getElementById('map-canvas'), mapOptions);
+        //}
+        //google.maps.event.addDomListener(window, 'load', initialize);
+
+        // Initialize the Google Maps API v3
+        var map = new google.maps.Map(document.getElementById('map-canvas'), {
+            zoom: 15,
+            center: { lat: 50.837864, lng: 4.398080},
+            mapTypeId: google.maps.MapTypeId.ROADMAP
+        });
+        var marker = null;
+        function autoUpdate(newPoint) {
+            if (marker) {
+                // Marker already created - Move it
+                marker.setPosition(newPoint);
+            } else {
+                // Marker does not exist - Create it
+                marker = new google.maps.Marker({
+                    position: newPoint,
+                    map: map
+                });
+            }
+            // Center the map on the new position
+            map.setCenter(newPoint);
+            // Call the autoUpdate() function every 5 seconds
+            //setTimeout(autoUpdate, 5000);
+        }
