@@ -10,7 +10,7 @@ var http = require('http');
 
 var ShifterbeltClient = require('shifterbelt-talker');
 var shifterbeltClient = new ShifterbeltClient({
-  url: String(process.argv.slice(2, 3)[0]),
+  url: String(process.argv.slice(2, 3)[0]), // Default : http://socket.shifterbelt.com/ns
   applicationId: Number(process.argv.slice(3, 4)[0]),
   key: process.argv.slice(4, 5)[0],
   password: process.argv.slice(5, 6)[0]
@@ -40,8 +40,8 @@ shifterbeltClient.on('connect', function(sbSoc) {
         //console.log('sender: ' + sender + ' message: ' + message);
         ioSoc.emit('gps_data', { sender: service.deviceId, message: message });
       });
-      service.on('status', function(message) {
-        ioSoc.emit('status', { sender: service.deviceId, message: message });
+      service.on('status', function(data) {
+        ioSoc.emit('status', { sender: service.deviceId, message: data });
       });
       ioSoc.on('command', function(command) {
         //console.log(command);

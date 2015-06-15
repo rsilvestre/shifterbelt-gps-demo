@@ -24,7 +24,10 @@ block content
             $result.text('');
         });
         socket.on('status', function(data){
-            if (data.message === 'off') {
+            if (data.message.err) {
+                return $('#flash').text(data.message.err.message);
+            }
+            if (data.message.value === 'off') {
                 $result.text('');
             }
         });
