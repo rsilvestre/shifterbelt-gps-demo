@@ -26,16 +26,18 @@ app.set('port', port);
 /**
  * Create HTTP server.
  */
-
 var server = http.createServer(app);
 
+/**
+ * Crate Socket Io Server
+ */
 var io = require('socket.io')(server);
 
 shifterbeltClient.on('connect', function(sbSoc) {
-  //console.log("sb connected");
+  console.log("sb connected");
   sbSoc.on('connect', function(service) {
     io.on('connection', function(ioSoc) {
-      //console.log("io connected");
+      console.log("io connected");
       service.on('gps_data', function(message) {
         //console.log('sender: ' + sender + ' message: ' + message);
         ioSoc.emit('gps_data', { sender: service.deviceId, message: message });
@@ -55,7 +57,7 @@ shifterbeltClient.on('connect', function(sbSoc) {
  * Listen on provided port, on all network interfaces.
  */
 
-server.listen(port);
+server.listen(app.get('port'));
 server.on('error', onError);
 server.on('listening', onListening);
 
