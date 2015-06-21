@@ -22,7 +22,6 @@ block content
             });
             $('[name="no"]').on('click', function() {
                 socket.emit('command', 'no');
-                $result.text('');
             });
             socket.on('status', function(data) {
                 if (data.message.err) {

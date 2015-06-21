@@ -39,7 +39,7 @@ var io = require('socket.io')(server);
 /**
  * Queue system
  */
-var context = require('rabbit.js').createContext(process.env.CLOUDAMQP_URL || 'amqp://localhost');
+var context = require('rabbit.js').createContext('amqp://localhost');
 context.on('ready', function() {
 
   shifterbeltClient.on('connect', function(sbSoc) {
