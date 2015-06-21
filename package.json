@@ -1,19 +1,20 @@
 {
   "name": "shifterbelt-gps_demo",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "scripts": {
     "start": "DEBUG=shifterbelt-gps_demo:* PORT=3001 pm2 start bin/demo"
   },
   "dependencies": {
-    "body-parser": "^1.12.4",
+    "body-parser": "~1.12.4",
     "cookie-parser": "^1.3.5",
     "debug": "^2.2.0",
-    "express": "^4.11.2",
+    "express": "~4.11.2",
     "jade": "^1.11.0",
     "morgan": "^1.6.0",
+    "rabbit.js": "^0.4.2",
     "serve-favicon": "^2.3.0",
-    "shifterbelt-talker": "^0.1.12",
-    "socket.io": "^1.3.5"
+    "shifterbelt-talker": "~0.2.0",
+    "socket.io": "~1.3.5"
   }
 }

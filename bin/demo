@@ -8,6 +8,21 @@ var app = require('../app');
 var debug = require('debug')('shifterbelt-gps_demo:server');
 var http = require('http');
 
+/**
+ * Get port from environment and store in Express.
+ */
+
+var port = normalizePort(process.env.DEMO_PORT || '3001');
+app.set('port', port);
+
+/**
+ * Create HTTP server.
+ */
+var server = http.createServer(app);
+
+/**
+ * Create Shifterbelt
+ */
 var ShifterbeltClient = require('shifterbelt-talker');
 var shifterbeltClient = new ShifterbeltClient({
   url: process.env.DEMO_URL || String(process.argv.slice(2, 3)[0]), // Default : http://socket.shifterbelt.com/ns
@@ -17,40 +32,119 @@ var shifterbeltClient = new ShifterbeltClient({
 });
 
 /**
- * Get port from environment and store in Express.
- */
-
-var port = normalizePort(process.env.PORT || '3001');
-app.set('port', port);
-
-/**
- * Create HTTP server.
- */
-var server = http.createServer(app);
-
-/**
- * Crate Socket Io Server
+ * Create socket.io
  */
 var io = require('socket.io')(server);
 
-shifterbeltClient.on('connect', function(sbSoc) {
-  console.log("sb connected");
-  sbSoc.on('connect', function(service) {
-    io.on('connection', function(ioSoc) {
-      console.log("io connected");
-      service.on('gps_data', function(message) {
-        //console.log('sender: ' + sender + ' message: ' + message);
-        ioSoc.emit('gps_data', { sender: service.deviceId, message: message });
+/**
+ * Queue system
+ */
+var context = require('rabbit.js').createContext(process.env.CLOUDAMQP_URL || 'amqp://localhost');
+context.on('ready', function() {
+
+  shifterbeltClient.on('connect', function(sbSoc) {
+    console.log('Shifterbelt connected');
+
+    sbSoc.on('connect', function(service) {
+      console.log("sb connected");
+
+      var pub = context.socket('PUB', { routing: 'topic' });
+      var dataDown = context.socket('SUB', { routing: 'topic' });
+
+      sbSoc.on('disconnect', function() {
+        console.log('shifterbelt disconnected');
+        pub.close();
+        dataDown.close();
       });
-      service.on('status', function(data) {
-        ioSoc.emit('status', { sender: service.deviceId, message: data });
+
+      //dataDown.pipe(process.stdout);
+      dataDown.setEncoding('utf8');
+
+      dataDown.connect('events2', 'dataDown', function() {
+        pub.connect('events1', function() {
+          pub.connect('events2', function() {
+            console.log('shifterbelt queue connected');
+            //pub.publish('dataUp', JSON.stringify({ welcome: 'rabbit.js dataUp' }), 'utf8');
+
+            service.on('gps_data', function(message) {
+              //console.log('sender: ' + sender + ' message: ' + message);
+              pub.publish('dataUp', JSON.stringify({
+                key: 'gps_data',
+                value: { sender: service.deviceId, message: message }
+              }));
+            });
+
+            service.on('status', function(message) {
+              //console.log('sender: ' + sender + ' message: ' + message);
+              pub.publish('dataUp', JSON.stringify({
+                key: 'status',
+                value: { sender: service.deviceId, message: message }
+              }));
+            });
+
+            dataDown.on('data', function(data) {
+              //console.log("dataDown datas: %s", data);
+              //ioSoc.emit('gps_data', { sender: service.deviceId, message: message });
+              data = JSON.parse(data);
+              service.emit(data.key, data.value);
+            });
+
+          });
+        });
       });
-      ioSoc.on('command', function(command) {
-        //console.log(command);
-        service.emit('command', command);
+
+      /*
+       service.on('gps_data', function(message) {
+       //console.log('sender: ' + sender + ' message: ' + message);
+       ioSoc.emit('gps_data', { sender: service.deviceId, message: message });
+       });
+       service.on('status', function(data) {
+       ioSoc.emit('status', { sender: service.deviceId, message: data });
+       });
+       ioSoc.on('command', function(command) {
+       //console.log(command);
+       service.emit('command', command);
+       });
+       */
+    });
+  });
+
+  io.on('connection', function(ioSoc) {
+    console.log("io connected");
+
+    var pub = context.socket('PUB', { routing: 'topic' });
+    var dataUp = context.socket('SUB', { routing: 'topic' });
+
+    ioSoc.on('disconnect', function() {
+      console.log('socket.io disconnected: %', ioSoc.id);
+      pub.close();
+      dataUp.close();
+    });
+
+    //dataUp.pipe(process.stdout);
+    dataUp.setEncoding('utf8');
+
+    dataUp.connect('events1', 'dataUp', function() {
+      pub.connect('events1', function() {
+        pub.connect('events2', function() {
+          console.log('socket.io queue connected');
+          //pub.publish('dataDown', JSON.stringify({ welcome: 'rabbit.js dataDown' }), 'utf8');
+
+          dataUp.on('data', function(data) {
+            //console.log("dataUp datas: %s", data);
+            //ioSoc.emit('gps_data', { sender: service.deviceId, message: message });
+            data = JSON.parse(data);
+            ioSoc.emit(data.key, { sender: data.value.sender, message: data.value.message });
+          });
+
+          ioSoc.on('command', function(command) {
+            pub.publish('dataDown', JSON.stringify({ key: 'command', value: command }));
+          });
+        });
       });
     });
   });
+
 });
 
 /**
