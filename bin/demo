@@ -7,11 +7,11 @@
 var app = require('../app');
 var debug = require('debug')('shifterbelt-gps_demo:server');
 var http = require('http');
+var ShifterToSocketIO = require('../modules/shifterbeltToSocketIO');
 
 /**
  * Get port from environment and store in Express.
  */
-
 var port = normalizePort(process.env.DEMO_PORT || '3001');
 app.set('port', port);
 
@@ -20,163 +20,11 @@ app.set('port', port);
  */
 var server = http.createServer(app);
 
-/**
- * Create Shifterbelt
- */
-var ShifterbeltClient = require('shifterbelt-talker');
-var shifterbeltClient = new ShifterbeltClient({
-  url: process.env.DEMO_URL || String(process.argv.slice(2, 3)[0]), // Default : http://socket.shifterbelt.com/ns
-  applicationId: Number(process.env.DEMO_APP_ID) || Number(process.argv.slice(3, 4)[0]),
-  key: process.env.DEMO_KEY || process.argv.slice(4, 5)[0],
-  password: process.env.DEMO_PASSWORD || process.argv.slice(5, 6)[0]
-});
-
-/**
- * Create socket.io
- */
-var io = require('socket.io')(server);
-
-/**
- * Queue system
- */
-var context = require('rabbit.js').createContext('amqp://localhost');
-context.on('ready', function() {
-  var devices = {};
-
-  shifterbeltClient.on('connect', function(sbSoc) {
-    console.log('Shifterbelt connected');
-
-    sbSoc.on('connect', function(service) {
-      console.log("sb connected");
-
-      devices[service.deviceId] = true;
-
-      var pub = context.socket('PUB', { routing: 'topic' });
-      var dataDown = context.socket('SUB', { routing: 'topic' });
-
-      //dataDown.pipe(process.stdout);
-      dataDown.setEncoding('utf8');
-
-      dataDown.connect('events2', 'dataDown|' + service.deviceId, function() {
-        pub.connect('events1', function() {
-          pub.connect('events2', function() {
-            service.on('disconnect', function() {
-              console.log('shifterbelt disconnected');
-
-              try {
-                pub.publish('dataUp', JSON.stringify({
-                  key: 'deviceDisconnected',
-                  value: { sender: service.deviceId, message: 'disconnected' }
-                }));
-              } catch(e) {
-                console.error(e);
-              }
-
-              delete(devices[service.deviceId]);
-
-              try {
-                pub.close();
-                dataDown.close();
-              } catch(e) {
-                console.error(e);
-              }
-            });
-
-            pub.publish('dataUp', JSON.stringify({
-              key: 'deviceConnected',
-              value: { sender: service.deviceId, message: 'connected' }
-            }));
-
-            console.log('shifterbelt queue connected');
-            //pub.publish('dataUp', JSON.stringify({ welcome: 'rabbit.js dataUp' }), 'utf8');
-
-            service.on('gps_data', function(message) {
-              //console.log('sender: ' + sender + ' message: ' + message);
-              pub.publish('dataUp', JSON.stringify({
-                key: 'gps_data',
-                value: { sender: service.deviceId, message: message }
-              }));
-            });
-
-            service.on('status', function(message) {
-              //console.log('sender: ' + sender + ' message: ' + message);
-              pub.publish('dataUp', JSON.stringify({
-                key: 'status',
-                value: { sender: service.deviceId, message: message }
-              }));
-            });
-
-            dataDown.on('data', function(data) {
-              //console.log("dataDown datas: %s", data);
-              //ioSoc.emit('gps_data', { sender: service.deviceId, message: message });
-              data = JSON.parse(data);
-              service.emit(data.key, data.value);
-            });
-
-          });
-        });
-      });
-
-      /*
-       service.on('gps_data', function(message) {
-       //console.log('sender: ' + sender + ' message: ' + message);
-       ioSoc.emit('gps_data', { sender: service.deviceId, message: message });
-       });
-       service.on('status', function(data) {
-       ioSoc.emit('status', { sender: service.deviceId, message: data });
-       });
-       ioSoc.on('command', function(command) {
-       //console.log(command);
-       service.emit('command', command);
-       });
-       */
-    });
-  });
-
-  io.on('connection', function(ioSoc) {
-    console.log("io connected");
-
-    ioSoc.emit('devices', devices);
-
-    var pub = context.socket('PUB', { routing: 'topic' });
-    var dataUp = context.socket('SUB', { routing: 'topic' });
-
-    ioSoc.on('disconnect', function() {
-      console.log('socket.io disconnected: %', ioSoc.id);
-      pub.close();
-      dataUp.close();
-    });
-
-    //dataUp.pipe(process.stdout);
-    dataUp.setEncoding('utf8');
-
-    dataUp.connect('events1', 'dataUp', function() {
-      pub.connect('events1', function() {
-        pub.connect('events2', function() {
-          console.log('socket.io queue connected');
-          //pub.publish('dataDown', JSON.stringify({ welcome: 'rabbit.js dataDown' }), 'utf8');
-
-          dataUp.on('data', function(data) {
-            //console.log("dataUp datas: %s", data);
-            //ioSoc.emit('gps_data', { sender: service.deviceId, message: message });
-            data = JSON.parse(data);
-            ioSoc.emit(data.key, { sender: data.value.sender, message: data.value.message });
-          });
-
-          ioSoc.on('command', function(command) {
-            pub.publish('dataDown|'+command.sender, JSON.stringify({ key: 'command', value: command.name }));
-          });
-        });
-      });
-    });
-  });
-
-});
+var shifterbeltToSocketIO = new ShifterToSocketIO(server);
 
 /**
  * Listen on provided port, on all network interfaces.
  */
-
 server.listen(app.get('port'));
 server.on('error', onError);
 server.on('listening', onListening);
@@ -184,7 +32,6 @@ server.on('listening', onListening);
 /**
  * Normalize a port into a number, string, or false.
  */
-
 function normalizePort(val) {
   var port = parseInt(val, 10);
 
@@ -204,7 +51,6 @@ function normalizePort(val) {
 /**
  * Event listener for HTTP server "error" event.
  */
-
 function onError(error) {
   if (error.syscall !== 'listen') {
     throw error;
@@ -232,7 +78,6 @@ function onError(error) {
 /**
  * Event listener for HTTP server "listening" event.
  */
-
 function onListening() {
   var addr = server.address();
   var bind = typeof addr === 'string'
