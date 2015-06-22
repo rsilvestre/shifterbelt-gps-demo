@@ -3,13 +3,35 @@ extends layout
 block content
     h1= title
     p Welcome to #{title}
-    button(name="yes") yes
-    button(name="no") no
+    div#command
     div#result
     div#map-canvas
 
     script.
         $(function() {
+            function createDeviceCommandElement(data) {
+                $('#command').append($('<div><p>new device: ' + data.sender + '</p></div>')
+                                .addClass('container_' + data.sender)
+                                .append($('<button>yes</button>')
+                                        .attr({ name: 'yes' })
+                                        .addClass('button_' + data.sender)
+                                        .addClass('text')
+                                        .attr({"data-sender": data.sender})
+                        ).append($('<button>no</button>')
+                                        .attr({ name: 'no' })
+                                        .addClass('button_' + data.sender)
+                                        .addClass('text')
+                                        .attr({"data-sender": data.sender})
+                        )
+                );
+
+                $('#command').find('.button_' + data.sender).on('click', function() {
+                    var name = $(this).attr('name');
+                    var sender = $(this).data('sender');
+                    socket.emit('command', {name: name, sender: sender});
+                });
+            }
+
             var socket = io(location.host);
             var $result = $('#result');
             socket.on('gps_data', function(data) {
@@ -17,12 +39,7 @@ block content
                 var msgObj = data.message;
                 autoUpdate(new google.maps.LatLng(msgObj.latitude, msgObj.longitude));
             });
-            $('[name="yes"]').on('click', function() {
-                socket.emit('command', 'yes');
-            });
-            $('[name="no"]').on('click', function() {
-                socket.emit('command', 'no');
-            });
+
             socket.on('status', function(data) {
                 if (data.message.err) {
                     return $('#flash').text(data.message.err.message);
@@ -30,6 +47,27 @@ block content
                 if (data.message.value === 'off') {
                     $result.text('');
                 }
+            });
+
+            socket.on('devices', function(data) {
+                Object.keys(data).forEach(function(value){
+                    var data = {
+                        sender:value,
+                        message:'connected'
+                    };
+                    createDeviceCommandElement(data);
+                });
+            });
+
+            socket.on('deviceConnected', function(data){
+                createDeviceCommandElement(data);
+            });
+
+            socket.on('deviceDisconnected', function(data){
+                $('#command').find('.button_' + data.sender).each(function(){
+                    $(this).off('click');
+                });
+                $('#command').find('.container_' + data.sender).remove();
             });
             //function initialize() {
             //    var mapOptions = {

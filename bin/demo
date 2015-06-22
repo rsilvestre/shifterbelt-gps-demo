@@ -41,6 +41,7 @@ var io = require('socket.io')(server);
  */
 var context = require('rabbit.js').createContext('amqp://localhost');
 context.on('ready', function() {
+  var devices = {};
 
   shifterbeltClient.on('connect', function(sbSoc) {
     console.log('Shifterbelt connected');
@@ -48,21 +49,44 @@ context.on('ready', function() {
     sbSoc.on('connect', function(service) {
       console.log("sb connected");
 
+      devices[service.deviceId] = true;
+
       var pub = context.socket('PUB', { routing: 'topic' });
       var dataDown = context.socket('SUB', { routing: 'topic' });
-
-      sbSoc.on('disconnect', function() {
-        console.log('shifterbelt disconnected');
-        pub.close();
-        dataDown.close();
-      });
 
       //dataDown.pipe(process.stdout);
       dataDown.setEncoding('utf8');
 
-      dataDown.connect('events2', 'dataDown', function() {
+      dataDown.connect('events2', 'dataDown|' + service.deviceId, function() {
         pub.connect('events1', function() {
           pub.connect('events2', function() {
+            service.on('disconnect', function() {
+              console.log('shifterbelt disconnected');
+
+              try {
+                pub.publish('dataUp', JSON.stringify({
+                  key: 'deviceDisconnected',
+                  value: { sender: service.deviceId, message: 'disconnected' }
+                }));
+              } catch(e) {
+                console.error(e);
+              }
+
+              delete(devices[service.deviceId]);
+
+              try {
+                pub.close();
+                dataDown.close();
+              } catch(e) {
+                console.error(e);
+              }
+            });
+
+            pub.publish('dataUp', JSON.stringify({
+              key: 'deviceConnected',
+              value: { sender: service.deviceId, message: 'connected' }
+            }));
+
             console.log('shifterbelt queue connected');
             //pub.publish('dataUp', JSON.stringify({ welcome: 'rabbit.js dataUp' }), 'utf8');
 
@@ -112,6 +136,8 @@ context.on('ready', function() {
   io.on('connection', function(ioSoc) {
     console.log("io connected");
 
+    ioSoc.emit('devices', devices);
+
     var pub = context.socket('PUB', { routing: 'topic' });
     var dataUp = context.socket('SUB', { routing: 'topic' });
 
@@ -138,7 +164,7 @@ context.on('ready', function() {
           });
 
           ioSoc.on('command', function(command) {
-            pub.publish('dataDown', JSON.stringify({ key: 'command', value: command }));
+            pub.publish('dataDown|'+command.sender, JSON.stringify({ key: 'command', value: command.name }));
           });
         });
       });
